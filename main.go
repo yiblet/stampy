@@ -15,7 +15,7 @@ import (
 
 // opts represents the command-line configuration for the timestamping CLI.
 type opts struct {
-	Format string `description:"Timestamp format; accepts Go layouts or 's'/'ms' for elapsed time" default:"2006-01-02:15:04:05" required:"true" short:"f" long:"format"`
+	Format string `description:"Timestamp format; accepts Go layouts or 's'/'ms' for elapsed time or ds for time since last line and dms for time since last line (ms)" default:"2006-01-02:15:04:05" required:"true" short:"f" long:"format"`
 	Input  string `description:"Optional input file (defaults to stdin)" arg:"positional"`
 	Output string `description:"Optional output file (defaults to stdout)" arg:"positional"`
 }
@@ -23,8 +23,8 @@ type opts struct {
 // createIO wires up the appropriate reader and writer based on the provided
 // paths and returns a cleanup function that closes any opened files.
 func createIO(in string, out string) (io.Reader, io.Writer, func() error, error) {
-	var inFile *os.File = os.Stdin
-	var outFile *os.File = os.Stdout
+	var inFile = os.Stdin
+	var outFile = os.Stdout
 
 	mustClose := [](func() error){}
 	if in != "" {
@@ -80,7 +80,10 @@ func run(args opts) (err error) {
 func main() {
 	var args opts
 	arg.MustParse(&args)
-	run(args)
+	if err := run(args); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 // processLines consumes lines from the provided reader, prefixes them with a
@@ -88,6 +91,7 @@ func main() {
 func processLines(reader io.Reader, writer io.Writer, format string, nowFn func() time.Time) error {
 	bufreader := bufio.NewReader(reader)
 	start := nowFn()
+	prev := start
 
 	for {
 		line, err := bufreader.ReadString('\n')
@@ -99,7 +103,9 @@ func processLines(reader io.Reader, writer io.Writer, format string, nowFn func(
 			break
 		}
 
-		stamp := formatStamp(format, start, nowFn)
+		current := nowFn()
+		stamp := formatStamp(format, start, prev, current)
+		prev = current
 		if _, writeErr := fmt.Fprintf(writer, "%s: %s", stamp, line); writeErr != nil {
 			return writeErr
 		}
@@ -113,15 +119,19 @@ func processLines(reader io.Reader, writer io.Writer, format string, nowFn func(
 }
 
 // formatStamp derives the appropriate timestamp string for the current line.
-func formatStamp(format string, start time.Time, nowFn func() time.Time) string {
-	current := nowFn()
-
+func formatStamp(format string, start, prev, current time.Time) string {
 	switch format {
 	case "s":
 		diff := current.Sub(start)
 		return fmt.Sprintf("%fs", diff.Seconds())
 	case "ms":
 		diff := current.Sub(start)
+		return fmt.Sprintf("%dms", diff.Milliseconds())
+	case "ds":
+		diff := current.Sub(prev)
+		return fmt.Sprintf("%dms", diff.Milliseconds())
+	case "dms":
+		diff := current.Sub(current)
 		return fmt.Sprintf("%dms", diff.Milliseconds())
 	default:
 		return current.Format(format)
