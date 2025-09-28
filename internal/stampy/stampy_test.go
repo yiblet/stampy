@@ -1,4 +1,4 @@
-package main
+package stampy
 
 import (
 	"bytes"
@@ -68,7 +68,7 @@ func TestProcessLinesSecondsFormat(t *testing.T) {
 	input := strings.NewReader("first line\nsecond line\n")
 	var output bytes.Buffer
 
-	if err := processLines(input, &output, "s", clock); err != nil {
+	if err := ProcessLines(input, &output, "s", clock); err != nil {
 		t.Fatalf("processLines returned error: %v", err)
 	}
 
@@ -102,7 +102,7 @@ func TestProcessLinesMillisecondsFormat(t *testing.T) {
 	input := strings.NewReader("single line\n")
 	var output bytes.Buffer
 
-	if err := processLines(input, &output, "ms", clock); err != nil {
+	if err := ProcessLines(input, &output, "ms", clock); err != nil {
 		t.Fatalf("processLines returned error: %v", err)
 	}
 
@@ -129,7 +129,7 @@ func TestProcessLinesCustomFormat(t *testing.T) {
 	var output bytes.Buffer
 
 	layout := "2006-01-02"
-	if err := processLines(input, &output, layout, clock); err != nil {
+	if err := ProcessLines(input, &output, layout, clock); err != nil {
 		t.Fatalf("processLines returned error: %v", err)
 	}
 
@@ -155,13 +155,41 @@ func TestProcessLinesRespectsMissingTrailingNewline(t *testing.T) {
 	input := strings.NewReader("no newline")
 	var output bytes.Buffer
 
-	if err := processLines(input, &output, "ms", clock); err != nil {
+	if err := ProcessLines(input, &output, "ms", clock); err != nil {
 		t.Fatalf("processLines returned error: %v", err)
 	}
 
 	result := output.String()
 	if strings.HasSuffix(result, "\n") {
 		t.Fatalf("expected output to omit trailing newline, got %q", result)
+	}
+}
+
+func TestRunWithClockProcessesFileIO(t *testing.T) {
+	dir := t.TempDir()
+	inputPath := filepath.Join(dir, "input.txt")
+	outputPath := filepath.Join(dir, "output.txt")
+
+	if err := os.WriteFile(inputPath, []byte("example line\n"), 0o644); err != nil {
+		t.Fatalf("failed to seed input file: %v", err)
+	}
+
+	stamp := time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
+	clock := newFakeClock(stamp)
+
+	opts := Options{Format: "15:04", Input: inputPath, Output: outputPath}
+	if err := RunWithClock(opts, clock); err != nil {
+		t.Fatalf("RunWithClock returned error: %v", err)
+	}
+
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("failed to read output file: %v", err)
+	}
+
+	got := string(data)
+	if got != "12:00: example line\n" {
+		t.Fatalf("unexpected output contents: %q", got)
 	}
 }
 
