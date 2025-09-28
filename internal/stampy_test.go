@@ -1,4 +1,4 @@
-package stampy
+package internal
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yiblet/stampy/internal/stampy/template"
+	"github.com/yiblet/stampy/internal/template"
 )
 
 func TestCreateIOWithDefaults(t *testing.T) {

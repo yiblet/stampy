@@ -1,4 +1,4 @@
-package stampy
+package internal
 
 import (
 	"bufio"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yiblet/stampy/internal/stampy/template"
+	"github.com/yiblet/stampy/internal/template"
 )
 
 const defaultTemplate = "{iso}: {}"

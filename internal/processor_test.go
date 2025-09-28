@@ -1,11 +1,11 @@
-package stampy
+package internal
 
 import (
 	"bytes"
 	"testing"
 	"time"
 
-	"github.com/yiblet/stampy/internal/stampy/template"
+	"github.com/yiblet/stampy/internal/template"
 )
 
 func TestLineBufferPushAndFlush(t *testing.T) {

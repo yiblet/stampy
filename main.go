@@ -6,7 +6,7 @@ import (
 
 	"github.com/alexflint/go-arg"
 
-	"github.com/yiblet/stampy/internal/stampy"
+	"github.com/yiblet/stampy/internal"
 )
 
 type cliArgs struct {
@@ -38,15 +38,15 @@ JSONL mode (--json <name>):
   - Invalid JSON gets wrapped as {"<name>": "stamp", "line": "original"}
 
 Examples:
-  stampy                                  # default elapsed template
+  stampy                                  # default ISO timestamp template
   stampy "{elapsed:.1f}s Δ{delta:.1f}s {}"  # elapsed + delta timings
   stampy "[{time:%H:%M:%S}] {line}: {}"     # human-readable clock with line numbers
-  stampy --json ts "{elapsed:.2f}s"        # JSONL mode with "ts" timestamp key
+  stampy --json ts "{iso}"                  # JSONL mode with ISO timestamp
 `
 }
 
-func (c *cliArgs) toOptions() stampy.Options {
-	opts := stampy.Options{
+func (c *cliArgs) toOptions() internal.Options {
+	opts := internal.Options{
 		Input:   c.Input,
 		Output:  c.Output,
 		JSONKey: c.JSON,
@@ -61,7 +61,7 @@ func (c *cliArgs) toOptions() stampy.Options {
 func main() {
 	var args cliArgs
 	arg.MustParse(&args)
-	if err := stampy.Run(args.toOptions()); err != nil {
+	if err := internal.Run(args.toOptions()); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}

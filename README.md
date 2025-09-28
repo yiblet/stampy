@@ -10,7 +10,7 @@ stampy [TEMPLATE] [--input PATH] [--output PATH] [--json KEY]
 
 ### Template Basics
 
-- Omit the template to use the default `"{elapsed:.1f}s {}"` (elapsed seconds plus the original line).
+- Omit the template to use the default `"{iso}: {}"` (ISO timestamp plus the original line).
 - Use `{}` to choose where the original line is inserted; if omitted, stampy appends the line after the rendered prefix with a space.
 - Available tokens:
   - `{elapsed[:fmt]}` – seconds since the first line (default `:.1f`).
@@ -32,7 +32,7 @@ stampy [TEMPLATE] [--input PATH] [--output PATH] [--json KEY]
 ### Text Mode (Default)
 
 ```bash
-# Read from stdin, write to stdout with default elapsed template
+# Read from stdin, write to stdout with default ISO template
 echo "hello world" | stampy
 
 # Show elapsed and delta timings
@@ -52,16 +52,16 @@ cat script.log | stampy "#{line} {elapsed:.1f}s {}"
 
 ```bash
 # Convert JSON logs with timestamp field
-echo '{"message": "hello", "level": "info"}' | stampy --json timestamp "{elapsed:.2f}s"
-# Output: {"level":"info","message":"hello","timestamp":"0.00s"}
+echo '{"message": "hello", "level": "info"}' | stampy --json timestamp "{iso}"
+# Output: {"level":"info","message":"hello","timestamp":"2024-09-27T21:30:45Z"}
 
 # Wrap primitive values
 echo '"just a string"' | stampy --json ts "{time:15:04:05}"
 # Output: {"line":"just a string","ts":"12:34:56"}
 
 # Handle invalid JSON
-echo 'not json' | stampy --json stamp "{elapsed:.1f}s"
-# Output: {"line":"not json","stamp":"0.0s"}
+echo 'not json' | stampy --json stamp "{iso}"
+# Output: {"line":"not json","stamp":"2024-09-27T21:30:45Z"}
 
 # Process mixed log formats
 cat mixed.log | stampy --json event_time "{iso} +{elapsed:.3f}s"
@@ -73,7 +73,7 @@ cat mixed.log | stampy --json event_time "{iso} +{elapsed:.3f}s"
 Each line is prefixed according to the chosen template. For the default template:
 
 ```
-0.0s your text here
+2024-09-27T21:30:45Z: your text here
 ```
 
 ### JSONL Mode
