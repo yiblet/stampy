@@ -1,11 +1,11 @@
 # Stampy
 
-A command-line utility to prepend timestamps to lines of text, reading from stdin or a file and emitting to stdout or a file. Stampy now supports a brace-based template language for building expressive prefixes.
+A command-line utility to prepend timestamps to lines of text, reading from stdin or a file and emitting to stdout or a file. Stampy supports a brace-based template language for building expressive prefixes and can output either text or JSONL format.
 
 ## Usage
 
 ```bash
-stampy [TEMPLATE] [--input PATH] [--output PATH]
+stampy [TEMPLATE] [--input PATH] [--output PATH] [--json KEY]
 ```
 
 ### Template Basics
@@ -25,8 +25,11 @@ stampy [TEMPLATE] [--input PATH] [--output PATH]
 
 - `--input, -i` – optional input file (defaults to stdin).
 - `--output, -o` – optional output file (defaults to stdout).
+- `--json KEY` – enable JSONL mode with the specified timestamp key name.
 
 ## Examples
+
+### Text Mode (Default)
 
 ```bash
 # Read from stdin, write to stdout with default elapsed template
@@ -45,10 +48,36 @@ stampy "{unix} {}" --input input.txt
 cat script.log | stampy "#{line} {elapsed:.1f}s {}"
 ```
 
+### JSONL Mode
+
+```bash
+# Convert JSON logs with timestamp field
+echo '{"message": "hello", "level": "info"}' | stampy --json timestamp "{elapsed:.2f}s"
+# Output: {"level":"info","message":"hello","timestamp":"0.00s"}
+
+# Wrap primitive values
+echo '"just a string"' | stampy --json ts "{time:15:04:05}"
+# Output: {"line":"just a string","ts":"12:34:56"}
+
+# Handle invalid JSON
+echo 'not json' | stampy --json stamp "{elapsed:.1f}s"
+# Output: {"line":"not json","stamp":"0.0s"}
+
+# Process mixed log formats
+cat mixed.log | stampy --json event_time "{iso} +{elapsed:.3f}s"
+```
+
 ## Output Format
 
+### Text Mode
 Each line is prefixed according to the chosen template. For the default template:
 
 ```
 0.0s your text here
 ```
+
+### JSONL Mode
+Input is processed as JSON and enriched with timestamps:
+- **JSON objects**: timestamp field is merged in
+- **Primitives/arrays**: wrapped with timestamp and `"line"` field
+- **Invalid JSON**: wrapped as string with timestamp

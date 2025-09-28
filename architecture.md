@@ -8,7 +8,7 @@
 5. The `Emitter` serializes results either as formatted text (template mode) or enriched JSON objects (JSONL mode).
 
 ## Modules & Responsibilities
-- **cmd/stampy (main.go)**: Owns CLI concerns only. Delegates to `internal/stampy` with a populated `Options`. Future flag changes (e.g. positional template, `--jsonl`) stay here.
+- **cmd/stampy (main.go)**: Owns CLI concerns only. Delegates to `internal/stampy` with a populated `Options`. Future flag changes (e.g. positional template, `--json`) stay here.
 - **internal/stampy/options.go (planned)**: Validates raw CLI input, filling defaults (template, delta semantics, jsonl key). Keeps `Options` clean for downstream components.
 - **internal/stampy/io.go (existing createIO)**: Encapsulates reader/writer setup and cleanup management. Remains reusable for tests.
 - **internal/stampy/template/**:
@@ -53,7 +53,7 @@ stdout/file
 - Validation catches duplicated `{}` placeholders, unknown tokens, or mixing layout styles.
 
 ## JSONL Mode
-- Triggered by `Options.JSONKey` being non-empty.
+- Triggered by `Options.JSONKey` being non-empty (via `--json <name>` flag).
 - Template still executes to produce the stamp string.
 - Input line handling:
   - Parse using `encoding/json`.

@@ -12,7 +12,7 @@ import (
 	"github.com/yiblet/stampy/internal/stampy/template"
 )
 
-const defaultTemplate = "{elapsed:.1f}s {}"
+const defaultTemplate = "{iso}: {}"
 
 // Options captures the configuration used when running the timestamping workflow.
 type Options struct {
@@ -20,6 +20,7 @@ type Options struct {
 	TemplateProvided bool
 	Input            string
 	Output           string
+	JSONKey          string
 }
 
 // Run executes the timestamping workflow using the system clock.
@@ -50,7 +51,7 @@ func RunWithClock(opts Options, nowFn func() time.Time) (err error) {
 		}
 	}()
 
-	return processLines(reader, writer, tpl, nowFn)
+	return processLines(reader, writer, tpl, opts, nowFn)
 }
 
 // createIO wires up the appropriate reader and writer based on the provided
@@ -99,10 +100,19 @@ type lineRecord struct {
 	timestamp  time.Time
 }
 
-func processLines(reader io.Reader, writer io.Writer, tpl template.Template, nowFn func() time.Time) error {
+func processLines(reader io.Reader, writer io.Writer, tpl template.Template, opts Options, nowFn func() time.Time) error {
 	bufreader := bufio.NewReader(reader)
 	buffer := newLineBuffer()
-	emitter := newTextEmitter(tpl, writer)
+
+	// Select emitter based on whether JSONL mode is enabled
+	var emitter interface {
+		emit(emission) error
+	}
+	if opts.JSONKey != "" {
+		emitter = newJSONEmitter(tpl, writer, opts.JSONKey)
+	} else {
+		emitter = newTextEmitter(tpl, writer)
+	}
 
 	for {
 		line, err := bufreader.ReadString('\n')
