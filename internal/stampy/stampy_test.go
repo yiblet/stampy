@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/yiblet/stampy/internal/stampy/template"
 )
 
 func TestCreateIOWithDefaults(t *testing.T) {
@@ -61,14 +62,19 @@ func TestCreateIOWithFiles(t *testing.T) {
 	}
 }
 
-func TestProcessLinesSecondsFormat(t *testing.T) {
+func TestProcessLinesElapsedAndDelta(t *testing.T) {
 	base := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	clock := newFakeClock(base, base, base.Add(2*time.Second))
+	clock := newFakeClock(base, base.Add(2*time.Second))
+
+	tpl, err := template.Parse("{elapsed:.1f}s Δ{delta:.1f}s {}")
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
 
 	input := strings.NewReader("first line\nsecond line\n")
 	var output bytes.Buffer
 
-	if err := ProcessLines(input, &output, "s", clock); err != nil {
+	if err := processLines(input, &output, tpl, clock); err != nil {
 		t.Fatalf("processLines returned error: %v", err)
 	}
 
@@ -77,91 +83,54 @@ func TestProcessLinesSecondsFormat(t *testing.T) {
 		t.Fatalf("expected 2 lines, got %d", len(lines))
 	}
 
-	expectedSuffixes := []string{"first line", "second line"}
-	for i, line := range lines {
-		stamp, rest := splitLine(line, t, i)
-		if rest != expectedSuffixes[i] {
-			t.Fatalf("line %d body mismatch: got %q want %q", i, rest, expectedSuffixes[i])
-		}
-
-		if !strings.HasSuffix(stamp, "s") {
-			t.Fatalf("line %d missing seconds suffix: %q", i, stamp)
-		}
-
-		seconds := strings.TrimSuffix(stamp, "s")
-		if _, err := strconv.ParseFloat(seconds, 64); err != nil {
-			t.Fatalf("line %d stamp not parseable as float seconds: %v", i, err)
-		}
+	if lines[0] != "0.0s Δ2.0s first line" {
+		t.Fatalf("unexpected first line: %q", lines[0])
 	}
-}
-
-func TestProcessLinesMillisecondsFormat(t *testing.T) {
-	base := time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
-	clock := newFakeClock(base, base.Add(1500*time.Millisecond))
-
-	input := strings.NewReader("single line\n")
-	var output bytes.Buffer
-
-	if err := ProcessLines(input, &output, "ms", clock); err != nil {
-		t.Fatalf("processLines returned error: %v", err)
-	}
-
-	lines := splitOutput(output.String())
-	if len(lines) != 1 {
-		t.Fatalf("expected 1 line, got %d", len(lines))
-	}
-
-	stamp, rest := splitLine(lines[0], t, 0)
-	if rest != "single line" {
-		t.Fatalf("unexpected line body: %q", rest)
-	}
-
-	if stamp != "1500ms" {
-		t.Fatalf("unexpected milliseconds stamp: %q", stamp)
-	}
-}
-
-func TestProcessLinesCustomFormat(t *testing.T) {
-	base := time.Date(2023, 12, 25, 18, 30, 0, 0, time.UTC)
-	clock := newFakeClock(base, base)
-
-	input := strings.NewReader("only line\n")
-	var output bytes.Buffer
-
-	layout := "2006-01-02"
-	if err := ProcessLines(input, &output, layout, clock); err != nil {
-		t.Fatalf("processLines returned error: %v", err)
-	}
-
-	lines := splitOutput(output.String())
-	if len(lines) != 1 {
-		t.Fatalf("expected 1 line, got %d", len(lines))
-	}
-
-	stamp, rest := splitLine(lines[0], t, 0)
-	if rest != "only line" {
-		t.Fatalf("unexpected line body: %q", rest)
-	}
-
-	if _, err := time.Parse(layout, stamp); err != nil {
-		t.Fatalf("timestamp does not match layout %q: %v", layout, err)
+	if lines[1] != "2.0s Δ0.0s second line" {
+		t.Fatalf("unexpected second line: %q", lines[1])
 	}
 }
 
 func TestProcessLinesRespectsMissingTrailingNewline(t *testing.T) {
 	base := time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC)
-	clock := newFakeClock(base, base.Add(500*time.Millisecond))
+	clock := newFakeClock(base)
+
+	tpl, err := template.Parse("{elapsed:.1f}s {}")
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
 
 	input := strings.NewReader("no newline")
 	var output bytes.Buffer
 
-	if err := ProcessLines(input, &output, "ms", clock); err != nil {
+	if err := processLines(input, &output, tpl, clock); err != nil {
 		t.Fatalf("processLines returned error: %v", err)
 	}
 
 	result := output.String()
 	if strings.HasSuffix(result, "\n") {
 		t.Fatalf("expected output to omit trailing newline, got %q", result)
+	}
+}
+
+func TestProcessLinesSingleLineWithNewline(t *testing.T) {
+	base := time.Date(2024, 4, 1, 12, 0, 0, 0, time.UTC)
+	clock := newFakeClock(base)
+
+	tpl, err := template.Parse("{elapsed:.1f}s {}")
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+
+	input := strings.NewReader("only line\n")
+	var output bytes.Buffer
+
+	if err := processLines(input, &output, tpl, clock); err != nil {
+		t.Fatalf("processLines returned error: %v", err)
+	}
+
+	if output.String() != "0.0s only line\n" {
+		t.Fatalf("unexpected output: %q", output.String())
 	}
 }
 
@@ -177,7 +146,7 @@ func TestRunWithClockProcessesFileIO(t *testing.T) {
 	stamp := time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
 	clock := newFakeClock(stamp)
 
-	opts := Options{Format: "15:04", Input: inputPath, Output: outputPath}
+	opts := Options{Template: "{time:15:04}: {}", TemplateProvided: true, Input: inputPath, Output: outputPath}
 	if err := RunWithClock(opts, clock); err != nil {
 		t.Fatalf("RunWithClock returned error: %v", err)
 	}
@@ -190,6 +159,42 @@ func TestRunWithClockProcessesFileIO(t *testing.T) {
 	got := string(data)
 	if got != "12:00: example line\n" {
 		t.Fatalf("unexpected output contents: %q", got)
+	}
+}
+
+func TestRunWithClockDefaultsTemplate(t *testing.T) {
+	dir := t.TempDir()
+	inputPath := filepath.Join(dir, "input.txt")
+	outputPath := filepath.Join(dir, "output.txt")
+
+	if err := os.WriteFile(inputPath, []byte("hello\n"), 0o644); err != nil {
+		t.Fatalf("failed to seed input file: %v", err)
+	}
+
+	base := time.Date(2024, 7, 1, 0, 0, 0, 0, time.UTC)
+	clock := newFakeClock(base)
+
+	opts := Options{Input: inputPath, Output: outputPath}
+	if err := RunWithClock(opts, clock); err != nil {
+		t.Fatalf("RunWithClock returned error: %v", err)
+	}
+
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("failed to read output file: %v", err)
+	}
+
+	if string(data) != "0.0s hello\n" {
+		t.Fatalf("unexpected default output: %q", string(data))
+	}
+}
+
+func TestRunWithClockInvalidTemplate(t *testing.T) {
+	stamp := time.Date(2024, 8, 1, 0, 0, 0, 0, time.UTC)
+	clock := newFakeClock(stamp)
+
+	if err := RunWithClock(Options{Template: "{elapsed", TemplateProvided: true}, clock); err == nil {
+		t.Fatalf("expected parse error")
 	}
 }
 

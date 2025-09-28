@@ -1,48 +1,54 @@
 # Stampy
 
-A command-line utility to prepend timestamps to lines of text, reading from stdin or a file and emitting to stdout or a file.
+A command-line utility to prepend timestamps to lines of text, reading from stdin or a file and emitting to stdout or a file. Stampy now supports a brace-based template language for building expressive prefixes.
 
 ## Usage
 
 ```bash
-stampy [OPTIONS] [INPUT_FILE] [OUTPUT_FILE]
+stampy [TEMPLATE] [--input PATH] [--output PATH]
 ```
+
+### Template Basics
+
+- Omit the template to use the default `"{elapsed:.1f}s {}"` (elapsed seconds plus the original line).
+- Use `{}` to choose where the original line is inserted; if omitted, stampy appends the line after the rendered prefix with a space.
+- Available tokens:
+  - `{elapsed[:fmt]}` – seconds since the first line (default `:.1f`).
+  - `{delta[:fmt]}` – seconds until the next line; the final line always shows `0.0`.
+  - `{time:<layout>}` – absolute timestamp using Go layouts (`2006-01-02`), Unix `date` directives (`%Y-%m-%d`), or named layouts such as `iso`, `iso8601`, `iso8601nano`, and `unix`.
+  - `{iso}` – shortcut for RFC3339 (`2006-01-02T15:04:05Z07:00`).
+  - `{unix[:fmt]}` – seconds since the Unix epoch (default integer seconds).
+  - `{line}` – 1-based line number.
+- Escape literal braces with `{{` or `}}`.
 
 ### Options
 
-- `-f, --format` - Timestamp format (default: `2006-01-02:15:04:05`)
-  - Accepts Go time layouts
-  - Special formats:
-    - `s` - Elapsed time in seconds since start
-    - `ms` - Elapsed time in milliseconds since start
-    - `ds` - Time in milliseconds since last line
-    - `dms` - Time in milliseconds since last line
-
-### Arguments
-
-- `INPUT_FILE` - Optional input file (defaults to stdin)
-- `OUTPUT_FILE` - Optional output file (defaults to stdout)
+- `--input, -i` – optional input file (defaults to stdin).
+- `--output, -o` – optional output file (defaults to stdout).
 
 ## Examples
 
 ```bash
-# Read from stdin, write to stdout with default timestamp format
+# Read from stdin, write to stdout with default elapsed template
 echo "hello world" | stampy
 
-# Process a file with elapsed seconds
-stampy -f s input.txt
+# Show elapsed and delta timings
+tail -f app.log | stampy "{elapsed:.1f}s Δ{delta:.1f}s {}"
 
-# Process stdin with milliseconds since last line, output to file
-cat input.txt | stampy -f ds output.txt
+# Human-readable clock time for files
+stampy "[{time:15:04:05}] {}" --input input.txt --output output.txt
 
-# Process file to file with custom timestamp format
-stampy -f "15:04:05" input.txt output.txt
+# Unix timestamp output
+stampy "{unix} {}" --input input.txt
+
+# Line numbers with elapsed time
+cat script.log | stampy "#{line} {elapsed:.1f}s {}"
 ```
 
 ## Output Format
 
-Each line is prefixed with the timestamp followed by a colon and space:
+Each line is prefixed according to the chosen template. For the default template:
 
 ```
-2006-01-02:15:04:05: your text here
+0.0s your text here
 ```
